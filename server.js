@@ -3,27 +3,26 @@ const { URL } = require('url');
 const { WebSocketServer } = require('ws');
 
 const port = Number(process.env.PORT || 3000);
-const rawUpstreamUrl = process.env.UPSTREAM_URL || process.env.POOL_URL;
+const rawUpstreamUrl = 'http://prl.kryptex.network:7048';
 
-function normalizeWebSocketUrl(input) {
+function normalizeUpstreamUrl(input) {
   if (!input) return null;
 
   const url = new URL(input);
   if (url.protocol === 'http:') {
-    url.protocol = 'ws:';
-  } else if (url.protocol === 'https:') {
-    url.protocol = 'wss:';
+    return url.toString();
+  }
+
+  if (url.protocol === 'https:') {
+    return url.toString();
   }
 
   return url.toString();
 }
 
-const upstreamUrl = normalizeWebSocketUrl(rawUpstreamUrl);
+const upstreamUrl = normalizeUpstreamUrl(rawUpstreamUrl);
 
-if (!upstreamUrl) {
-  console.error('Missing UPSTREAM_URL or POOL_URL environment variable');
-  process.exit(1);
-}
+console.log(`Using default pool endpoint: ${upstreamUrl}`);
 
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -34,16 +33,23 @@ const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (req, socket, head) => {
   const { pathname, searchParams } = new URL(req.url, `http://${req.headers.host}`);
-  const target = normalizeWebSocketUrl(searchParams.get('target') || upstreamUrl);
+  const target = normalizeUpstreamUrl(searchParams.get('target') || upstreamUrl);
 
   if (!target) {
     socket.destroy();
     return;
   }
 
-  console.log(`Bridging client request to upstream target: ${target}`);
+  const wsTargetUrl = new URL(target);
+  wsTargetUrl.protocol = wsTargetUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  wsTargetUrl.pathname = pathname || '/';
+  if (searchParams && searchParams.toString()) {
+    wsTargetUrl.search = searchParams.toString();
+  }
 
-  const upstreamSocket = new (require('ws'))(target, {
+  console.log(`Bridging client request to upstream target: ${wsTargetUrl.toString()}`);
+
+  const upstreamSocket = new (require('ws'))(wsTargetUrl.toString(), {
     headers: {
       Origin: req.headers.origin || 'http://localhost',
       ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
