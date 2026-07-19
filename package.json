@@ -1,0 +1,12 @@
+{
+  "name": "glowing-happiness-ws-proxy",
+  "version": "1.0.0",
+  "description": "A simple WebSocket bridge for routing miner traffic to a pool endpoint",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
